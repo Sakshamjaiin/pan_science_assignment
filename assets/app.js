@@ -224,7 +224,7 @@
       cols.push('<div class="col over"><h3>Not yet planned</h3><div class="dates">Needs more capacity or a scope decision</div><div class="load"></div>' +
         plan.overflow.map((x) => card(x) .replace("</div></div>", '</div><div class="hint">' + esc(x.reason) + "</div></div>")).join("") + "</div>");
     }
-    $("tab-plan").innerHTML = '<p class="hint" style="margin:0 0 10px">Stories are placed in priority order, after their dependencies (one sprint after a spike), without going over the sprint velocity. Click a card for details.</p><div class="board">' + cols.join("") + "</div>";
+    $("tab-plan").innerHTML = '<p class="hint" style="margin:0 0 10px">Must stories are placed first, then Should, then Could. Each story goes after its dependencies (one sprint after a spike), without going over the sprint velocity. Click a card for details.</p><div class="board">' + cols.join("") + "</div>";
 
     // backlog
     let rows = "";
