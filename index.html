@@ -27,7 +27,7 @@
           <h2>1. Requirement document</h2>
           <div class="btn-row">
             <button id="loadSample" class="btn btn-ghost" type="button">Load sample PRD</button>
-            <label class="btn btn-ghost" for="fileInput">Upload .md or .txt</label>
+            <label id="uploadBtn" class="btn btn-ghost" for="fileInput" tabindex="0" role="button">Upload .md or .txt</label>
             <input id="fileInput" type="file" accept=".md,.txt,text/plain,text/markdown" hidden>
             <button id="clearPrd" class="btn btn-ghost" type="button">Clear</button>
           </div>
@@ -86,20 +86,21 @@
       </div>
 
       <div id="out" hidden>
-        <nav class="tabs" role="tablist">
-          <button class="tab active" data-tab="overview" role="tab">Overview</button>
-          <button class="tab" data-tab="plan" role="tab">Sprint plan</button>
-          <button class="tab" data-tab="backlog" role="tab">Backlog</button>
-          <button class="tab" data-tab="checks" role="tab">Readiness checks <span id="checkCount" class="pill"></span></button>
-          <button class="tab" data-tab="questions" role="tab">Questions</button>
-          <button class="tab" data-tab="export" role="tab">Export</button>
+        <p id="staleNote" class="stale" role="status" hidden>The document or mode has changed since this backlog was generated. Click Generate backlog to refresh it.</p>
+        <nav class="tabs" role="tablist" aria-label="Results">
+          <button class="tab active" data-tab="overview" role="tab" id="t-overview" aria-controls="tab-overview" aria-selected="true">Overview</button>
+          <button class="tab" data-tab="plan" role="tab" id="t-plan" aria-controls="tab-plan" aria-selected="false">Sprint plan</button>
+          <button class="tab" data-tab="backlog" role="tab" id="t-backlog" aria-controls="tab-backlog" aria-selected="false">Backlog</button>
+          <button class="tab" data-tab="checks" role="tab" id="t-checks" aria-controls="tab-checks" aria-selected="false">Readiness checks <span id="checkCount" class="pill"></span></button>
+          <button class="tab" data-tab="questions" role="tab" id="t-questions" aria-controls="tab-questions" aria-selected="false">Questions</button>
+          <button class="tab" data-tab="export" role="tab" id="t-export" aria-controls="tab-export" aria-selected="false">Export</button>
         </nav>
-        <div id="tab-overview" class="tabpane"></div>
-        <div id="tab-plan" class="tabpane" hidden></div>
-        <div id="tab-backlog" class="tabpane" hidden></div>
-        <div id="tab-checks" class="tabpane" hidden></div>
-        <div id="tab-questions" class="tabpane" hidden></div>
-        <div id="tab-export" class="tabpane" hidden></div>
+        <div id="tab-overview" class="tabpane" role="tabpanel" aria-labelledby="t-overview"></div>
+        <div id="tab-plan" class="tabpane" role="tabpanel" aria-labelledby="t-plan" hidden></div>
+        <div id="tab-backlog" class="tabpane" role="tabpanel" aria-labelledby="t-backlog" hidden></div>
+        <div id="tab-checks" class="tabpane" role="tabpanel" aria-labelledby="t-checks" hidden></div>
+        <div id="tab-questions" class="tabpane" role="tabpanel" aria-labelledby="t-questions" hidden></div>
+        <div id="tab-export" class="tabpane" role="tabpanel" aria-labelledby="t-export" hidden></div>
       </div>
     </section>
   </main>

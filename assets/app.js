@@ -16,15 +16,27 @@
 
   // ---------- helpers ----------
   const esc = (s) => String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-  const toast = (msg) => { const t = $("toast"); t.textContent = msg; t.classList.add("show"); setTimeout(() => t.classList.remove("show"), 1800); };
+  let toastTimer = null;
+  const toast = (msg) => { const t = $("toast"); t.textContent = msg; t.classList.add("show"); clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove("show"), 1800); };
   const setStatus = (msg, isErr) => { const s = $("status"); s.textContent = msg || ""; s.classList.toggle("err", !!isErr); };
   const norm = (s) => String(s || "").replace(/\s+/g, " ").trim();
 
+  // Read a number input, keep it inside the input's own min and max, and write the used value back,
+  // so the plan always matches what the screen shows.
+  function numInput(id, fallback) {
+    const el = $(id);
+    let v = parseInt(el.value, 10);
+    if (isNaN(v)) v = fallback;
+    v = Math.min(Number(el.max), Math.max(Number(el.min), v));
+    if (String(v) !== el.value) el.value = v;
+    return v;
+  }
+
   function settings() {
     return {
-      sprints: Math.max(1, parseInt($("sprints").value, 10) || 6),
-      velocity: Math.max(1, parseInt($("velocity").value, 10) || 32),
-      weeks: Math.max(1, parseInt($("sprintWeeks").value, 10) || 2),
+      sprints: numInput("sprints", 6),
+      velocity: numInput("velocity", 32),
+      weeks: numInput("sprintWeeks", 2),
       start: $("startDate").value || "2026-11-16",
       mode: document.querySelector('input[name="mode"]:checked').value,
       provider: $("provider").value,
@@ -43,13 +55,26 @@
   }
 
   // ---------- flatten ----------
+  // Every story needs a unique id for the plan, the detail view and the exports. A missing id is filled in,
+  // and a repeated id is renamed (the readiness checks report both).
   function flatten(data) {
     const stories = [];
+    const used = new Set();
     (data.epics || []).forEach((e, ei) => {
+      if (!e.id) e.id = "E" + (ei + 1);
       (e.stories || []).forEach((st, si) => {
+        let id = String(st.id || "").trim();
+        let idNote = null;
+        if (!id) { id = e.id + "-S" + (si + 1); idNote = "missing"; }
+        if (used.has(id)) {
+          let n = 2; while (used.has(id + "-" + n)) n++;
+          idNote = { duplicateOf: id }; id = id + "-" + n;
+        }
+        used.add(id);
+        if (idNote) st.id = id; // keep the JSON export in step with the plan
         stories.push(Object.assign({
           type: "Story", acceptance_criteria: [], depends_on: [], labels: [], points: 0, priority: "Should"
-        }, st, { epicId: e.id, epicName: e.name, order: ei * 1000 + si }));
+        }, st, { id, idNote, epicId: e.id, epicName: e.name, order: ei * 1000 + si }));
       });
     });
     return stories;
@@ -63,6 +88,8 @@
     const add = (s, rule, detail, level) => issues.push({ id: s.id, title: s.title, rule, detail, level: level || "medium" });
 
     stories.forEach((s) => {
+      if (s.idNote === "missing") add(s, "Story id", "The story had no id. It was given " + s.id + ".", "medium");
+      else if (s.idNote) add(s, "Story id", "The id " + s.idNote.duplicateOf + " is used by more than one story. This one was renamed " + s.id + ". Check which story its dependants mean.", "high");
       const story = norm(s.story);
       if (!/^as (a|an|the) .+?, (i|we) (want|need) .+?, so that .+/i.test(story)) {
         add(s, "Story format", "Write it as: As a user, I want a capability, so that a benefit.", "medium");
@@ -120,8 +147,14 @@
     const load = Array(s.sprints).fill(0);
     const sprintOf = {};
     const reason = {};
-    order.forEach((id) => {
+    const seen = {};
+    // Place one story, placing its dependencies first. A dependency is pulled forward with the story that needs it,
+    // whatever its own priority (the readiness checks flag that as a priority conflict).
+    const place = (id) => {
+      if (seen[id]) return;
+      seen[id] = true;
       const x = byId[id];
+      (x.depends_on || []).forEach((d) => { if (byId[d]) place(d); });
       const pts = Number(x.points) || 0;
       let min = 0; let blocked = false;
       (x.depends_on || []).forEach((d) => {
@@ -135,11 +168,14 @@
       for (let i = min; i < s.sprints; i++) { if (load[i] + pts <= s.velocity) { placed = i; break; } }
       if (placed == null) { sprintOf[id] = null; reason[id] = "No capacity left in the planned sprints"; return; }
       load[placed] += pts; sprintOf[id] = placed;
-    });
+    };
+    // Fill capacity tier by tier: all Must stories first, then Should, then Could. So when capacity is tight,
+    // Could items drop out first, then Should, and Must stories are never pushed out by lower priority work.
+    const tierOf = (x) => PRIORITY_RANK[x.priority] ?? 1;
+    [0, 1, 2].forEach((tier) => order.forEach((id) => { if (tierOf(byId[id]) === tier) place(id); }));
     const sprints = Array.from({ length: s.sprints }, (_, i) => ({ index: i, name: "Sprint " + (i + 1), dates: sprintDates(i, s), load: load[i], items: [] }));
     const overflow = [];
-    order.forEach((id) => { const i = sprintOf[id]; if (i == null) overflow.push(Object.assign({ reason: reason[id] }, byId[id])); else sprints[i].items.push(byId[id]); });
-    return { sprints, overflow, sprintOf };
+    order.forEach((id) => { const i = sprintOf[id]; if (i == null) overflow.push(Object.assign({ reason: reason[id] }, byId[id])); else sprints[i].items.push(byId[id]); });    return { sprints, overflow, sprintOf };
   }
 
   // ---------- rendering ----------
@@ -196,10 +232,10 @@
       rows += '<tr class="epic"><td colspan="6">' + esc(e.id + " " + e.name) + ' <span class="hint" style="font-weight:400">' + esc(e.goal || "") + "</span></td></tr>";
       stories.filter((x) => x.epicId === e.id).forEach((x) => {
         const sp = plan.sprintOf[x.id];
-        rows += '<tr class="story" data-id="' + esc(x.id) + '"><td>' + esc(x.id) + "</td><td><b>" + esc(x.title) + '</b><div class="hint">' + esc(x.story) + '</div></td><td><span class="chip type">' + esc(x.type) + '</span></td><td><span class="chip ' + esc(x.priority) + '">' + esc(x.priority) + '</span></td><td class="pts">' + esc(x.points) + "</td><td>" + (sp == null ? "Not planned" : "Sprint " + (sp + 1)) + "</td></tr>";
+        rows += '<tr class="story" tabindex="0" aria-expanded="false" data-id="' + esc(x.id) + '"><td>' + esc(x.id) + "</td><td><b>" + esc(x.title) + '</b><div class="hint">' + esc(x.story) + '</div></td><td><span class="chip type">' + esc(x.type) + '</span></td><td><span class="chip ' + esc(x.priority) + '">' + esc(x.priority) + '</span></td><td class="pts">' + esc(x.points) + "</td><td>" + (sp == null ? "Not planned" : "Sprint " + (sp + 1)) + "</td></tr>";
       });
     });
-    $("tab-backlog").innerHTML = '<p class="hint" style="margin:0 0 10px">Click a story to see acceptance criteria, dependencies and to copy it as a build spec for a developer or Claude Code.</p><table><thead><tr><th>ID</th><th>Story</th><th>Type</th><th>Priority</th><th>Points</th><th>Sprint</th></tr></thead><tbody>' + rows + "</tbody></table>";
+    $("tab-backlog").innerHTML = '<p class="hint" style="margin:0 0 10px">Click a story to see acceptance criteria, dependencies and to copy it as a build spec for a developer or Claude Code.</p><div class="table-wrap"><table><thead><tr><th>ID</th><th>Story</th><th>Type</th><th>Priority</th><th>Points</th><th>Sprint</th></tr></thead><tbody>' + rows + "</tbody></table></div>";
 
     // checks
     const count = $("checkCount"); count.textContent = issues.length; count.classList.toggle("zero", issues.length === 0);
@@ -207,7 +243,8 @@
       "<li>Story is written as As a, I want, so that.</li><li>2 to 5 acceptance criteria, each in Given / When / Then form.</li>" +
       "<li>No vague words in acceptance criteria (fast, easy, intuitive, seamless and similar).</li>" +
       "<li>Estimate on the Fibonacci scale and not above 8 points.</li><li>Priority is Must, Should or Could.</li>" +
-      "<li>Every dependency exists, there are no cycles, and a Must story never depends on a Should or Could story.</li></ol></div>";
+      "<li>Every dependency exists, there are no cycles, and a Must story never depends on a Should or Could story.</li>" +
+      "<li>Every story has a unique id.</li></ol></div>";
     $("tab-checks").innerHTML = rules + (issues.length
       ? issues.sort((a, b) => (a.level === "high" ? 0 : 1) - (b.level === "high" ? 0 : 1)).map((i) => '<div class="issue ' + (i.level === "high" ? "high" : "") + '"><div class="h">' + esc(i.id + " " + i.title) + " : " + esc(i.rule) + '</div><div class="d">' + esc(i.detail) + "</div></div>").join("")
       : '<div class="ok-box">Every story passes the Definition of Ready checks.</div>');
@@ -220,7 +257,7 @@
 
     // export
     $("tab-export").innerHTML = '<div class="exp">' +
-      expCard("Jira CSV", "Import into Jira with File, then Import issues from CSV. Epics and stories are linked by Issue Id and Parent Id.", "dlCsv", "Download CSV") +
+      expCard("Jira CSV", "In Jira Cloud: Settings, System, External system import, CSV. Map Issue Id and Parent Id so stories link to their epics. The Sprint column only matches sprints that already exist on your board.", "dlCsv", "Download CSV") +
       expCard("Markdown", "Sprint plan and full backlog for Confluence, Notion or a client email.", "dlMd", "Download Markdown") +
       expCard("JSON", "The raw backlog, for other tools or to load back later.", "dlJson", "Download JSON") +
       '</div><div class="card"><h2>CSV preview</h2><pre id="csvPreview"></pre></div>';
@@ -229,22 +266,29 @@
     $("dlMd").onclick = () => download("backlog_and_sprint_plan.md", toMarkdown(), "text/markdown");
     $("dlJson").onclick = () => download("backlog.json", JSON.stringify(current.data, null, 2), "application/json");
 
-    // interactions
-    document.querySelectorAll("#tab-backlog tr.story").forEach((tr) => tr.addEventListener("click", () => toggleDetail(tr)));
-    document.querySelectorAll(".scard").forEach((c) => c.addEventListener("click", () => {
+    // interactions (mouse, and Enter or Space for keyboard users)
+    document.querySelectorAll("#tab-backlog tr.story").forEach((tr) => onActivate(tr, () => toggleDetail(tr)));
+    document.querySelectorAll(".scard").forEach((c) => onActivate(c, () => {
       showTab("backlog");
-      const tr = document.querySelector('#tab-backlog tr.story[data-id="' + c.dataset.id + '"]');
-      if (tr) { if (!tr.nextElementSibling || !tr.nextElementSibling.classList.contains("detail")) toggleDetail(tr); tr.scrollIntoView({ behavior: "smooth", block: "center" }); }
+      const tr = document.querySelector('#tab-backlog tr.story[data-id="' + CSS.escape(c.dataset.id) + '"]');
+      if (tr) { if (!tr.nextElementSibling || !tr.nextElementSibling.classList.contains("detail")) toggleDetail(tr); tr.scrollIntoView({ behavior: "smooth", block: "center" }); tr.focus({ preventScroll: true }); }
     }));
+    updateStale();
+  }
+
+  function onActivate(el, fn) {
+    el.addEventListener("click", fn);
+    el.addEventListener("keydown", (ev) => { if (ev.target === el && (ev.key === "Enter" || ev.key === " ")) { ev.preventDefault(); fn(); } });
   }
 
   function stat(k, v, sub, cls) { return '<div class="stat ' + (cls || "") + '"><div class="k">' + esc(k) + '</div><div class="v">' + esc(v) + '</div><div class="s">' + esc(sub) + "</div></div>"; }
-  function card(x) { return '<div class="scard" data-id="' + esc(x.id) + '"><div class="top"><span>' + esc(x.id) + " · " + esc(x.type) + '</span><span class="pts">' + esc(x.points) + ' pts</span></div><div class="t">' + esc(x.title) + '</div><div style="margin-top:4px"><span class="chip ' + esc(x.priority) + '">' + esc(x.priority) + "</span></div></div>"; }
+  function card(x) { return '<div class="scard" tabindex="0" role="button" data-id="' + esc(x.id) + '"><div class="top"><span>' + esc(x.id) + " · " + esc(x.type) + '</span><span class="pts">' + esc(x.points) + ' pts</span></div><div class="t">' + esc(x.title) + '</div><div style="margin-top:4px"><span class="chip ' + esc(x.priority) + '">' + esc(x.priority) + "</span></div></div>"; }
   function expCard(t, d, id, b) { return '<div class="card"><h2>' + t + "</h2><p>" + d + '</p><button class="btn" id="' + id + '" type="button">' + b + "</button></div>"; }
 
   function toggleDetail(tr) {
     const next = tr.nextElementSibling;
-    if (next && next.classList.contains("detail")) { next.remove(); return; }
+    if (next && next.classList.contains("detail")) { next.remove(); tr.setAttribute("aria-expanded", "false"); return; }
+    tr.setAttribute("aria-expanded", "true");
     const x = current.stories.find((s) => s.id === tr.dataset.id);
     const iss = current.issues.filter((i) => i.id === x.id);
     const d = document.createElement("tr"); d.className = "detail";
@@ -368,6 +412,7 @@
     });
     const body = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error((body.error && body.error.message) || "Claude API error " + res.status);
+    if (body.stop_reason === "max_tokens") throw new Error(CUT_OFF);
     return (body.content || []).filter((c) => c.type === "text").map((c) => c.text).join("");
   }
 
@@ -384,15 +429,21 @@
     });
     const body = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error((body.error && body.error.message) || "Gemini API error " + res.status);
-    const parts = (((body.candidates || [])[0] || {}).content || {}).parts || [];
+    const cand = (body.candidates || [])[0] || {};
+    if (cand.finishReason === "MAX_TOKENS") throw new Error(CUT_OFF);
+    if (!cand.content && body.promptFeedback && body.promptFeedback.blockReason) throw new Error("Gemini blocked the request (" + body.promptFeedback.blockReason + ").");
+    const parts = (cand.content || {}).parts || [];
     return parts.map((p) => p.text || "").join("");
   }
+
+  const CUT_OFF = "The model's answer was cut off before the backlog was complete. Try again, or shorten the PRD.";
 
   function parseJson(text) {
     let t = String(text || "").trim().replace(/^```(?:json)?\s*/i, "").replace(/```\s*$/, "");
     const a = t.indexOf("{"), b = t.lastIndexOf("}");
     if (a < 0 || b < a) throw new Error("The model did not return JSON. Try again.");
-    const data = JSON.parse(t.slice(a, b + 1));
+    let data;
+    try { data = JSON.parse(t.slice(a, b + 1)); } catch (e) { throw new Error("The model returned incomplete or invalid JSON. Try again."); }
     if (!Array.isArray(data.epics) || !data.epics.length) throw new Error("The response has no epics. Try again or use a longer PRD.");
     return data;
   }
@@ -422,7 +473,7 @@
       const stories = flatten(data);
       const issues = checkStories(stories);
       const plan = allocate(stories, s);
-      current = { data, stories, issues, plan, s };
+      current = { data, stories, issues, plan, s, source: { prd: norm(prd), mode: s.mode } };
       render(); showTab("overview");
     } catch (e) {
       setStatus(e.message || String(e), true);
@@ -430,8 +481,18 @@
   }
 
   function showTab(name) {
-    document.querySelectorAll(".tab").forEach((t) => t.classList.toggle("active", t.dataset.tab === name));
+    document.querySelectorAll(".tab").forEach((t) => {
+      const on = t.dataset.tab === name;
+      t.classList.toggle("active", on); t.setAttribute("aria-selected", on ? "true" : "false");
+    });
     document.querySelectorAll(".tabpane").forEach((p) => (p.hidden = p.id !== "tab-" + name));
+  }
+
+  // Show a notice when the results no longer match the document or mode on screen.
+  function updateStale() {
+    if (!current) return;
+    const mode = document.querySelector('input[name="mode"]:checked').value;
+    $("staleNote").hidden = norm($("prd").value) === current.source.prd && mode === current.source.mode;
   }
 
   function updateMode() {
@@ -441,12 +502,14 @@
     const b = $("modeBadge");
     b.textContent = s.mode === "live" ? "Live mode" : "Demo mode";
     b.className = "badge " + (s.mode === "live" ? "badge-live" : "badge-demo");
+    updateStale();
   }
 
   function updateMeta() {
     const t = $("prd").value;
     const words = t.trim() ? t.trim().split(/\s+/).length : 0;
     $("prdMeta").textContent = words ? words + " words" : "";
+    updateStale();
   }
 
   // wire up
@@ -457,6 +520,7 @@
     const r = new FileReader(); r.onload = () => { $("prd").value = r.result; updateMeta(); setStatus("Loaded " + f.name + "."); }; r.readAsText(f);
     e.target.value = "";
   };
+  $("uploadBtn").addEventListener("keydown", (ev) => { if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); $("fileInput").click(); } });
   $("prd").addEventListener("input", updateMeta);
   document.querySelectorAll('input[name="mode"]').forEach((r) => r.addEventListener("change", updateMode));
   $("provider").onchange = () => { $("model").value = DEFAULT_MODELS[$("provider").value]; };

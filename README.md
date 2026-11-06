@@ -46,7 +46,7 @@ The AI only does what AI is good at: drafting language. Everything that must be 
 |---|---|---|
 | 1. Draft | LLM (Claude or Gemini) | Reads the PRD with the prompt in `prompts/backlog_prompt.md` and returns structured JSON: epics, stories, acceptance criteria, points, priority, dependencies, assumptions, open questions |
 | 2. Check | Code (`assets/app.js`) | Runs Definition of Ready rules on every story |
-| 3. Plan | Code | Orders stories by dependencies and priority, then fills sprints up to the velocity. A story that depends on a spike goes at least one sprint after it |
+| 3. Plan | Code | Fills sprints up to the velocity, all Must stories first, then Should, then Could, so lower priority work never pushes a Must story out. Each story's dependencies are placed before it, and a story that depends on a spike goes at least one sprint after it |
 | 4. Export | Code | Jira CSV, Markdown, JSON, or a build spec per story |
 
 ### Definition of Ready rules
@@ -56,6 +56,7 @@ The AI only does what AI is good at: drafting language. Everything that must be 
 4. The estimate is on the Fibonacci scale and not above 8 points.
 5. Priority is Must, Should or Could.
 6. Every dependency exists, there are no cycles, and a Must story never depends on a Should or Could story.
+7. Every story has a unique id (missing ids are filled in and repeated ids are renamed, and both are reported).
 
 ![Readiness checks](docs/readiness-checks.png)
 
@@ -65,6 +66,7 @@ In the sample, the checks catch two real planning problems: two Must stories dep
 1. Download the CSV from the Export tab.
 2. In Jira: Filters or Issues, then **Import issues from CSV** (Jira Cloud: Settings, System, External system import, CSV).
 3. Map `Issue Id` and `Parent Id` so stories link to their epics, and map `Story Points` and `Sprint`.
+4. The `Sprint` column only matches sprints that already exist on your board. Create Sprint 1 to N first, or leave the column unmapped.
 
 ### Copy as build spec
 On the Backlog tab, open any story and click **Copy as build spec**. You get a self contained Markdown task with the user story, acceptance criteria, dependencies and Definition of Done, ready to hand to a developer or paste into Claude Code.
