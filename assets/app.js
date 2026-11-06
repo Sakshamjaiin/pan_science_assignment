@@ -514,7 +514,19 @@
 
   // wire up
   $("loadSample").onclick = () => { $("prd").value = window.SAMPLE_PRD; updateMeta(); setStatus("Sample PRD loaded."); };
-  $("clearPrd").onclick = () => { $("prd").value = ""; updateMeta(); setStatus(""); };
+  // Two separate clears: "Clear" empties only the document text; "Clear results" removes the generated backlog
+  // and returns the results area to its starting state. Team setup and mode are kept either way.
+  $("clearPrd").onclick = () => { $("prd").value = ""; updateMeta(); setStatus(""); $("prd").focus(); };
+  function clearResults() {
+    current = null;
+    document.querySelectorAll(".tabpane").forEach((p) => (p.innerHTML = ""));
+    const count = $("checkCount"); count.textContent = ""; count.classList.remove("zero");
+    $("staleNote").hidden = true;
+    showTab("overview");
+    $("out").hidden = true; $("empty").hidden = false;
+    setStatus("Results cleared.");
+  }
+  $("clearResults").onclick = clearResults;
   $("fileInput").onchange = (e) => {
     const f = e.target.files[0]; if (!f) return;
     const r = new FileReader(); r.onload = () => { $("prd").value = r.result; updateMeta(); setStatus("Loaded " + f.name + "."); }; r.readAsText(f);

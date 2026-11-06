@@ -37,7 +37,7 @@
               <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V4M7 9l5-5 5 5M5 20h14"/></svg>
               Upload .md or .txt</label>
             <input id="fileInput" type="file" accept=".md,.txt,text/plain,text/markdown" hidden>
-            <button id="clearPrd" class="btn btn-ghost" type="button">
+            <button id="clearPrd" class="btn btn-ghost" type="button" title="Clear the document text">
               <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
               Clear</button>
           </div>
@@ -102,6 +102,7 @@
 
       <div id="out" hidden>
         <p id="staleNote" class="stale" role="status" hidden>The document or mode has changed since this backlog was generated. Click Generate backlog to refresh it.</p>
+        <div class="tabs-row">
         <nav class="tabs" role="tablist" aria-label="Results">
           <button class="tab active" data-tab="overview" role="tab" id="t-overview" aria-controls="tab-overview" aria-selected="true">Overview</button>
           <button class="tab" data-tab="plan" role="tab" id="t-plan" aria-controls="tab-plan" aria-selected="false">Sprint plan</button>
@@ -110,6 +111,10 @@
           <button class="tab" data-tab="questions" role="tab" id="t-questions" aria-controls="tab-questions" aria-selected="false">Questions</button>
           <button class="tab" data-tab="export" role="tab" id="t-export" aria-controls="tab-export" aria-selected="false">Export</button>
         </nav>
+        <button id="clearResults" class="btn btn-ghost btn-danger" type="button" title="Remove the generated backlog and start again">
+          <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></svg>
+          Clear results</button>
+        </div>
         <div id="tab-overview" class="tabpane" role="tabpanel" aria-labelledby="t-overview"></div>
         <div id="tab-plan" class="tabpane" role="tabpanel" aria-labelledby="t-plan" hidden></div>
         <div id="tab-backlog" class="tabpane" role="tabpanel" aria-labelledby="t-backlog" hidden></div>
