@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PRD to Sprint Backlog</title>
+  <meta name="description" content="Turn a product requirement document into a sprint ready backlog with acceptance criteria, readiness checks, a sprint plan and a Jira import file.">
+  <link rel="stylesheet" href="assets/styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <div class="logo" aria-hidden="true">PB</div>
+      <div>
+        <h1>PRD to Sprint Backlog</h1>
+        <p>Turn a requirement document into a sprint ready backlog: stories, acceptance criteria, readiness checks, sprint plan and Jira import.</p>
+      </div>
+    </div>
+    <span id="modeBadge" class="badge badge-demo">Demo mode</span>
+  </header>
+
+  <main class="layout">
+    <!-- Inputs -->
+    <section class="panel inputs" aria-label="Inputs">
+      <div class="card">
+        <div class="card-head">
+          <h2>1. Requirement document</h2>
+          <div class="btn-row">
+            <button id="loadSample" class="btn btn-ghost" type="button">Load sample PRD</button>
+            <label class="btn btn-ghost" for="fileInput">Upload .md or .txt</label>
+            <input id="fileInput" type="file" accept=".md,.txt,text/plain,text/markdown" hidden>
+            <button id="clearPrd" class="btn btn-ghost" type="button">Clear</button>
+          </div>
+        </div>
+        <textarea id="prd" spellcheck="false" placeholder="Paste a PRD, a client brief or meeting notes here"></textarea>
+        <p id="prdMeta" class="hint"></p>
+      </div>
+
+      <div class="card">
+        <h2>2. Team setup</h2>
+        <div class="grid2">
+          <label>Number of sprints<input id="sprints" type="number" min="1" max="12" value="6"></label>
+          <label>Velocity per sprint (points)<input id="velocity" type="number" min="5" max="200" value="32"></label>
+          <label>Sprint length (weeks)<input id="sprintWeeks" type="number" min="1" max="4" value="2"></label>
+          <label>First sprint starts<input id="startDate" type="date" value="2026-11-16"></label>
+        </div>
+        <p class="hint">Velocity is what the team reliably finishes per sprint. Keep it below the theoretical maximum to leave room for bugs and support.</p>
+      </div>
+
+      <div class="card">
+        <h2>3. AI engine</h2>
+        <div class="seg" role="radiogroup" aria-label="Mode">
+          <label><input type="radio" name="mode" value="demo" checked> Demo, no key needed</label>
+          <label><input type="radio" name="mode" value="live"> Live, use my API key</label>
+        </div>
+        <div id="liveFields" class="live-fields" hidden>
+          <div class="grid2">
+            <label>Provider
+              <select id="provider">
+                <option value="claude">Anthropic Claude</option>
+                <option value="gemini">Google Gemini</option>
+              </select>
+            </label>
+            <label>Model<input id="model" type="text" value="claude-sonnet-5-5"></label>
+          </div>
+          <label>API key<input id="apiKey" type="password" autocomplete="off" placeholder="Paste your key"></label>
+          <p class="hint">The key stays in this browser tab only. It is never saved and is sent only to the provider you pick.</p>
+        </div>
+        <p id="demoNote" class="hint">Demo mode shows saved output for the sample PRD, generated with the same prompt. Switch to Live to run on your own document.</p>
+        <button id="generate" class="btn btn-primary" type="button">Generate backlog</button>
+        <p id="status" class="status" role="status" aria-live="polite"></p>
+      </div>
+    </section>
+
+    <!-- Results -->
+    <section class="panel results" aria-label="Results">
+      <div id="empty" class="empty">
+        <h2>Your backlog appears here</h2>
+        <p>Load the sample PRD and click Generate backlog to see a full example in seconds.</p>
+        <ol>
+          <li>The AI drafts epics, stories, acceptance criteria and estimates.</li>
+          <li>Plain code checks every story against a Definition of Ready.</li>
+          <li>Plain code fits the stories into sprints, respecting dependencies and capacity.</li>
+          <li>You export to Jira, Markdown or JSON, or copy a story as a build spec for a developer or Claude Code.</li>
+        </ol>
+      </div>
+
+      <div id="out" hidden>
+        <nav class="tabs" role="tablist">
+          <button class="tab active" data-tab="overview" role="tab">Overview</button>
+          <button class="tab" data-tab="plan" role="tab">Sprint plan</button>
+          <button class="tab" data-tab="backlog" role="tab">Backlog</button>
+          <button class="tab" data-tab="checks" role="tab">Readiness checks <span id="checkCount" class="pill"></span></button>
+          <button class="tab" data-tab="questions" role="tab">Questions</button>
+          <button class="tab" data-tab="export" role="tab">Export</button>
+        </nav>
+        <div id="tab-overview" class="tabpane"></div>
+        <div id="tab-plan" class="tabpane" hidden></div>
+        <div id="tab-backlog" class="tabpane" hidden></div>
+        <div id="tab-checks" class="tabpane" hidden></div>
+        <div id="tab-questions" class="tabpane" hidden></div>
+        <div id="tab-export" class="tabpane" hidden></div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="foot">Built by Saksham Jain with Claude as a TPM productivity utility. AI drafts, the PM decides: review every story before it goes to a sprint.</footer>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <script src="assets/sample-prd.js"></script>
+  <script src="assets/demo-output.js"></script>
+  <script src="assets/prompt.js"></script>
+  <script src="assets/app.js"></script>
+</body>
+</html>
